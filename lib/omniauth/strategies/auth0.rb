@@ -29,10 +29,6 @@ module OmniAuth
         super
       end
 
-      # Use the "sub" key of the userinfo returned
-      # as the uid (globally unique string identifier).
-      uid { raw_info['sub'] }
-
       # Build the API credentials hash with returned auth data.
       credentials do
         credentials = {
@@ -49,12 +45,32 @@ module OmniAuth
         end
 
         # Make sure the ID token can be verified and decoded.
-        auth0_jwt   = OmniAuth::Auth0::JWTValidator.new(options)
-        @jwt_decoded = auth0_jwt.decode(credentials['id_token'])
-        fail!(:invalid_id_token) unless @jwt_decoded.length
+        if credentials['id_token']
+          auth0_jwt   = OmniAuth::Auth0::JWTValidator.new(options)
+          @id_token_decoded = auth0_jwt.decode(credentials['id_token'])
+          fail!(:invalid_id_token) unless @id_token_decoded.length
+          credentials.merge!('id_token_decoded' => @id_token_decoded)
+        end
 
         credentials
       end
+
+      # Parse the raw user info.
+      def raw_info
+        return @raw_info unless @raw_info.nil?
+        if skip_info?
+          @raw_info = raw_info_from_id_token
+          return @raw_info
+        else
+          userinfo_url = options.client_options.userinfo_url
+          @raw_info    ||= access_token.get(userinfo_url).parsed
+        end
+      end
+
+      # Use the "sub" key of the userinfo returned
+      # as the uid (globally unique string identifier).
+      # uid { raw_info['sub'] }
+      uid { 'dummy' }
 
       # Store all raw information for use in the session.
       extra do
@@ -108,24 +124,13 @@ module OmniAuth
 
       private
 
-      # Parse the raw user info.
-      def raw_info
-        if skip_info?
-          @raw_info = raw_info_from_id_token
-          return @raw_info
-        else
-          userinfo_url = options.client_options.userinfo_url
-          @raw_info    ||= access_token.get(userinfo_url).parsed
-        end
-      end
-
       def raw_info_from_id_token
         raw = {}
-        if @jwt_decoded.nil? || @jwt_decoded.length == 0
+        if @id_token_decoded.nil? || @id_token_decoded.length == 0
           return raw
         end
-        raw['sub'] = @jwt_decoded[0]['sub']
-        raw['email'] = @jwt_decoded[0]['email']
+        raw['sub'] = @id_token_decoded[0]['sub']
+        raw['email'] = @id_token_decoded[0]['email']
         raw
       end
 

@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'jwt'
+require 'awesome_print'
 
 RSpec.shared_examples 'site has valid domain url' do |url|
   it { expect(subject.site).to eq(url) }
@@ -189,6 +190,19 @@ describe OmniAuth::Strategies::Auth0 do
             'rack.session' => { 'omniauth.state' => state }
       end
 
+      # Tells you if this is considered to be a valid
+      # OmniAuth AuthHash. The requirements for that
+      # are that it has a provider name, a uid, and a
+      # valid info hash..
+      def valid_auth_hash?(hash)
+        return false if hash.nil?
+        return false if hash['uid'].nil?
+        return false if hash['provider'].nil?
+        return false if hash['info'].nil?
+        return false if hash['info']['name'].nil?
+        true
+      end
+
       before(:each) do
         WebMock.reset!
       end
@@ -217,6 +231,10 @@ describe OmniAuth::Strategies::Auth0 do
           expect(subject['uid']).to eq(user_id)
           expect(subject['info']['name']).to eq(user_id)
         end
+
+        it 'conforms to AuthHash schema' do
+          expect(valid_auth_hash?(subject)).to be true
+        end
       end
 
       context 'basic oauth w/refresh token' do
@@ -236,6 +254,11 @@ describe OmniAuth::Strategies::Auth0 do
           expect(subject['credentials']['expires']).to be true
           expect(subject['credentials']['expires_at']).to_not be_nil
         end
+
+        it 'conforms to AuthHash schema' do
+          expect(valid_auth_hash?(subject)).to be true
+        end
+
       end
 
       context 'oidc' do
@@ -270,6 +293,40 @@ describe OmniAuth::Strategies::Auth0 do
 
         it 'has extra' do
           expect(subject['extra']['raw_info']['email_verified']).to be true
+        end
+
+        it 'conforms to AuthHash schema' do
+          expect(valid_auth_hash?(subject)).to be true
+        end
+      end
+
+      context 'omniauth skip_info' do
+        before do
+          ::OmniAuth::Strategies::Auth0.configure( { skip_info: true } )
+          stub_auth(oauth_response)
+          stub_userinfo(basic_user_info)
+          trigger_callback
+        end
+
+        it 'to succeed' do
+          expect(last_response.status).to eq(200)
+        end
+
+        it 'has credentials' do
+          expect(subject['credentials']['token']).to eq(access_token)
+          expect(subject['credentials']['expires']).to be true
+          expect(subject['credentials']['expires_at']).to_not be_nil
+        end
+
+        it 'has basic values' do
+          expect(subject['raw_info']).not_to be_nil
+          expect(subject['provider']).to eq('auth0')
+          expect(subject['uid']).to eq(user_id)
+          expect(subject['info']['name']).to eq(user_id)
+        end
+
+        it 'conforms to AuthHash schema' do
+          expect(valid_auth_hash?(subject)).to be true
         end
       end
     end

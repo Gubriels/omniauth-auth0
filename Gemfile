@@ -7,6 +7,7 @@ gem 'jwt'
 gem 'rake'
 
 group :development do
+  gem 'awesome_print'
   gem 'dotenv'
   gem 'pry'
   gem 'rubocop', require: false
@@ -16,6 +17,7 @@ group :development do
 end
 
 group :test do
+  gem 'awesome_print'
   gem 'guard-rspec', require: false
   gem 'listen', '~> 3.1.5'
   gem 'rack-test'
